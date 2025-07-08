@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+# Check argument
+if [ -z "$1" ]; then
+    echo "Usage: $0 <threshold-date in YYYY-MM-DD format>"
+    exit 1
+fi
+
+THRESHOLD_DATE="$1"
+REPORT="old_branches_report_${THRESHOLD_DATE}.csv"
+echo "Branch Name,Author,Commit ID,Message" > "$REPORT"
+
+# Fetch remote branches
+git fetch --all --prune
+
+# Loop through remote branches
+for branch in $(git for-each-ref --format="%(refname:short)" refs/remotes/origin/ | grep -vE 'origin/(HEAD|main|master)'); do
+    last_commit_date=$(git log -1 --format="%cd" --date=iso "$branch")
+    commit_timestamp=$(date -d "$last_commit_date" +%s)
+    threshold_timestamp=$(date -d "$THRESHOLD_DATE" +%s)
+
+    if [ "$commit_timestamp" -lt "$threshold_timestamp" ]; then
+        author=$(git log -1 --format="%an" "$branch")
+        commit_id=$(git log -1 --format="%H" "$branch")
+        message=$(git log -1 --format="%s" "$branch")
+        echo "$branch,$author,$commit_id,\"$message\"" >> "$REPORT"
+    fi
+done
+
+echo "CSV report generated: $REPORT"
